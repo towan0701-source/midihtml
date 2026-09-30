@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="ja" class="h-full bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web MIDI Synth Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .key-white {
+            background: linear-gradient(to bottom, #ffffff 0%, #e2e8f0 100%);
+            box-shadow: inset 0 -4px 6px -1px rgba(0,0,0,0.2), 0 4px 6px -1px rgba(0,0,0,0.3);
+            border: 1px solid #cbd5e1;
+            transition: all 0.05s ease;
+        }
+        .key-white.active, .key-white:active {
+            background: linear-gradient(to bottom, #cbd5e1 0%, #38bdf8 100%);
+            transform: translateY(2px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+        }
+        .key-black {
+            background: linear-gradient(to bottom, #334155 0%, #0f172a 100%);
+            box-shadow: inset 0 -2px 4px rgba(255,255,255,0.1), 0 4px 8px rgba(0,0,0,0.6);
+            border: 1px solid #1e293b;
+            transition: all 0.05s ease;
+        }
+        .key-black.active, .key-black:active {
+            background: linear-gradient(to bottom, #0284c7 0%, #0369a1 100%);
+            transform: translateY(2px);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.6);
+        }
+        /* Custom slider styling */
+        input[type=range] {
+            accent-color: #38bdf8;
+        }
+        .synth-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans select-none overflow-x-hidden">
+
+    <!-- Header -->
+    <header class="bg-slate-950/80 border-b border-slate-800 px-4 py-3 sticky top-0 z-50 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20">
+                <i class="fa-solid fa-sliders text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-none tracking-wide text-white">Web MIDI Synth Studio</h1>
+                <p class="text-xs text-slate-400 mt-1">MIDI機器対応 リアルタイムWebAudioシンセサイザー</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Manual PDF Download/Open Button -->
+            <a href="download.pdf" target="_blank" rel="noopener noreferrer" id="btn-manual" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-2 border border-slate-700 shadow-md">
+                <i class="fa-solid fa-file-pdf text-rose-400"></i>
+                <span>説明書</span>
+            </a>
+
+            <!-- Audio Context Power Button -->
+            <button id="btn-audio-init" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-2 shadow-lg shadow-emerald-950/50">
+                <i class="fa-solid fa-power-off"></i>
+                <span id="audio-status-text">オーディオ有効化</span>
+            </button>
+
+            <!-- MIDI Device Selector -->
+            <div class="flex items-center gap-2 bg-slate-900 border border-slate-700/60 rounded-lg px-2.5 py-1">
+                <i class="fa-solid fa-plug text-slate-400 text-xs"></i>
+                <select id="midi-input-select" class="bg-transparent text-xs text-slate-200 outline-none cursor-pointer max-w-[180px] sm:max-w-[240px] truncate">
+                    <option value="" class="bg-slate-900 text-slate-400">MIDI機器を検索中...</option>
+                </select>
+                <span id="midi-status-dot" class="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" title="MIDI未接続"></span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 flex flex-col gap-4 overflow-y-auto">
+
+        <!-- Top Controls Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+            <!-- Preset & Tone Selection -->
+            <div class="synth-card p-4 rounded-xl flex flex-col justify-between gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                    <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-music"></i> プリセット & Octave
+                    </h2>
+                    <span class="text-[10px] text-slate-400">Timbre Engine</span>
+                </div>
+
+                <div>
+                    <label class="block text-xs text-slate-300 mb-1">音色プリセット</label>
+                    <select id="preset-select" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-sm text-sky-300 focus:border-sky-500 outline-none">
+                        <option value="grand_piano">Grand Piano (ピアノ)</option>
+                        <option value="electric_piano">E-Piano (エレピ)</option>
+                        <option value="fm_lead">FM Lead (FMリード)</option>
+                        <option value="warm_pad" selected>Warm Synth Pad (パッド)</option>
+                        <option value="hammond">Drawbar Organ (オルガン)</option>
+                        <option value="chiptune">8-Bit Retro (ファミコン風)</option>
+                        <option value="synth_bass">Pluck Bass (ベース)</option>
+                        <option value="marimba">Marimba (マリンバ)</option>
+                        <option value="synth_brass">Brass Section (ブラス)</option>
+                    </select>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 pt-1">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">オクターブ: <span id="val-octave" class="text-sky-400 font-mono">0</span></label>
+                        <div class="flex gap-1">
+                            <button id="btn-oct-down" class="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-xs py-1 rounded border border-slate-700">- Oct</button>
+                            <button id="btn-oct-up" class="flex-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-xs py-1 rounded border border-slate-700">+ Oct</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1">マスター音量: <span id="val-volume" class="text-sky-400 font-mono">80%</span></label>
+                        <input id="param-volume" type="range" min="0" max="1" step="0.01" value="0.8" class="w-full mt-1">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Envelope Generator (ADSR) -->
+            <div class="synth-card p-4 rounded-xl flex flex-col justify-between gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                    <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-wave-square"></i> ADSR エンベロープ
+                    </h2>
+                    <span class="text-[10px] text-slate-400">Volume Envelope</span>
+                </div>
+
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <div>
+                        <span class="text-[10px] text-slate-400 block mb-1">Attack</span>
+                        <input id="param-attack" type="range" min="0.001" max="2" step="0.01" value="0.05" class="w-full [orient:vertical] h-16 my-1">
+                        <span id="val-attack" class="text-[10px] text-sky-400 font-mono block">0.05s</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 block mb-1">Decay</span>
+                        <input id="param-decay" type="range" min="0.01" max="3" step="0.01" value="0.3" class="w-full [orient:vertical] h-16 my-1">
+                        <span id="val-decay" class="text-[10px] text-sky-400 font-mono block">0.30s</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 block mb-1">Sustain</span>
+                        <input id="param-sustain" type="range" min="0" max="1" step="0.01" value="0.7" class="w-full [orient:vertical] h-16 my-1">
+                        <span id="val-sustain" class="text-[10px] text-sky-400 font-mono block">0.70</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] text-slate-400 block mb-1">Release</span>
+                        <input id="param-release" type="range" min="0.01" max="4" step="0.01" value="0.8" class="w-full [orient:vertical] h-16 my-1">
+                        <span id="val-release" class="text-[10px] text-sky-400 font-mono block">0.80s</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filter & LFO Controls -->
+            <div class="synth-card p-4 rounded-xl flex flex-col justify-between gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                    <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-filter"></i> フィルター & VCF
+                    </h2>
+                    <span class="text-[10px] text-slate-400">Lowpass Filter</span>
+                </div>
+
+                <div class="space-y-2">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Cutoff (カットオフ)</span>
+                            <span id="val-cutoff" class="text-sky-400 font-mono">3500 Hz</span>
+                        </div>
+                        <input id="param-cutoff" type="range" min="50" max="12000" step="10" value="3500" class="w-full">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Resonance (レゾナンス)</span>
+                            <span id="val-resonance" class="text-sky-400 font-mono">2.0</span>
+                        </div>
+                        <input id="param-resonance" type="range" min="0" max="20" step="0.1" value="2" class="w-full">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">LFO 速度 (Vibrato Rate)</span>
+                            <span id="val-lfo-rate" class="text-sky-400 font-mono">5.0 Hz</span>
+                        </div>
+                        <input id="param-lfo-rate" type="range" min="0.1" max="20" step="0.1" value="5" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+            <!-- FX Processor Rack -->
+            <div class="synth-card p-4 rounded-xl flex flex-col justify-between gap-3">
+                <div class="flex items-center justify-between border-b border-slate-700/50 pb-2">
+                    <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-compact-disc"></i> エフェクト (FX)
+                    </h2>
+                    <span class="text-[10px] text-slate-400">Delay & Reverb</span>
+                </div>
+
+                <div class="space-y-2">
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Delay Time (ディレイ)</span>
+                            <span id="val-delay-time" class="text-sky-400 font-mono">0.25s</span>
+                        </div>
+                        <input id="param-delay-time" type="range" min="0" max="1" step="0.05" value="0.25" class="w-full">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Delay Feedback</span>
+                            <span id="val-delay-fb" class="text-sky-400 font-mono">30%</span>
+                        </div>
+                        <input id="param-delay-fb" type="range" min="0" max="0.85" step="0.05" value="0.3" class="w-full">
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between text-xs mb-1">
+                            <span class="text-slate-300">Reverb Wet (リバーブ)</span>
+                            <span id="val-reverb" class="text-sky-400 font-mono">20%</span>
+                        </div>
+                        <input id="param-reverb" type="range" min="0" max="0.8" step="0.02" value="0.2" class="w-full">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Visualizer & MIDI Activity Monitor Bar -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            
+            <!-- Audio Visualizer (Canvas) -->
+            <div class="synth-card p-3 rounded-xl lg:col-span-2 flex flex-col gap-2">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="font-semibold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-sky-400"></i> オシロスコープ & 波形ビジュアライザー
+                    </span>
+                    <span id="active-voices-counter" class="text-[11px] text-slate-400 font-mono">Active Voices: 0</span>
+                </div>
+                <div class="relative w-full h-28 bg-slate-950 rounded-lg overflow-hidden border border-slate-800">
+                    <canvas id="oscilloscope-canvas" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+            <!-- MIDI Activity & Controllers Display -->
+            <div class="synth-card p-3 rounded-xl flex flex-col justify-between gap-2">
+                <div class="flex justify-between items-center text-xs border-b border-slate-700/50 pb-1.5">
+                    <span class="font-semibold text-slate-300 flex items-center gap-2">
+                        <i class="fa-solid fa-tower-broadcast text-sky-400"></i> MIDI リアルタイム情報
+                    </span>
+                    <span id="sustain-indicator" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-500 font-bold uppercase">Sustain OFF</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Pitch Bend</span>
+                        <span id="midi-pitchbend-val" class="text-sky-300 font-mono text-sm font-semibold">Center (8192)</span>
+                    </div>
+                    <div class="bg-slate-950/80 p-2 rounded border border-slate-800">
+                        <span class="text-[10px] text-slate-400 block">Velocity (強打感度)</span>
+                        <span id="midi-velocity-val" class="text-sky-300 font-mono text-sm font-semibold">--</span>
+                    </div>
+                </div>
+
+                <!-- Last MIDI Command Log -->
+                <div class="bg-slate-950/80 p-2 rounded border border-slate-800 text-[11px] font-mono text-slate-400 h-14 overflow-y-auto" id="midi-log">
+                    <div>MIDI 信号を待機中...</div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Interactive On-Screen Piano Keyboard -->
+        <div class="synth-card p-4 rounded-xl flex flex-col gap-3">
+            <div class="flex flex-wrap justify-between items-center gap-2">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-keyboard"></i> 画面上キーボード (3 Octaves)
+                    </h2>
+                    <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700">PCキーボード対応 [A-K / W,E,T,Y,U]</span>
+                </div>
+                <div class="text-xs text-slate-400 flex items-center gap-4">
+                    <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-sky-400 inline-block"></span> 発音中</span>
+                </div>
+            </div>
+
+            <!-- Piano Key Container -->
+            <div class="relative w-full h-44 sm:h-52 bg-slate-950 p-2 rounded-xl border border-slate-800 overflow-x-auto flex justify-center shadow-inner" id="piano-keyboard">
+                <!-- Keys will be generated dynamically by JS -->
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-950 border-t border-slate-800 py-2 px-4 text-center text-xs text-slate-500">
+        Web MIDI Synth Studio &bull; Web MIDI API & Web Audio API
+    </footer>
+
+    <script>
+        // Audio & MIDI Global Context
+        let audioCtx = null;
+        let masterGain = null;
+        let mainFilter = null;
+        let delayNode = null;
+        let delayFeedbackNode = null;
+        let reverbGainNode = null;
+        let analyserNode = null;
+        let convolverNode = null;
+
+        let midiAccess = null;
+        let activeVoices = new Map(); // Note number -> Synth voice object
+        let activePedalNotes = new Set(); // Notes kept alive by sustain pedal
+        let isSustainActive = false;
+        let currentOctaveShift = 0;
+
+        // Sound Presets Data
+        const PRESETS = {
+            grand_piano: { wave: 'triangle', wave2: 'sine', attack: 0.005, decay: 0.8, sustain: 0.1, release: 0.4, cutoff: 4500, detune: 3 },
+            electric_piano: { wave: 'sine', wave2: 'sine', attack: 0.01, decay: 1.2, sustain: 0.2, release: 0.5, cutoff: 2800, detune: 7 },
+            fm_lead: { wave: 'sawtooth', wave2: 'square', attack: 0.01, decay: 0.2, sustain: 0.8, release: 0.3, cutoff: 5000, detune: 12 },
+            warm_pad: { wave: 'sawtooth', wave2: 'sawtooth', attack: 0.3, decay: 1.5, sustain: 0.8, release: 1.2, cutoff: 2200, detune: 15 },
+            hammond: { wave: 'sine', wave2: 'triangle', attack: 0.02, decay: 0.1, sustain: 1.0, release: 0.1, cutoff: 6000, detune: 0 },
+            chiptune: { wave: 'square', wave2: 'square', attack: 0.001, decay: 0.1, sustain: 0.7, release: 0.05, cutoff: 8000, detune: 0 },
+            synth_bass: { wave: 'sawtooth', wave2: 'triangle', attack: 0.01, decay: 0.4, sustain: 0.3, release: 0.2, cutoff: 1200, detune: 8 },
+            marimba: { wave: 'sine', wave2: 'triangle', attack: 0.001, decay: 0.3, sustain: 0.0, release: 0.1, cutoff: 3500, detune: 0 },
+            synth_brass: { wave: 'sawtooth', wave2: 'sawtooth', attack: 0.08, decay: 0.5, sustain: 0.7, release: 0.4, cutoff: 3200, detune: 18 }
+        };
+
+        // Current Parameters State
+        let synthParams = { ...PRESETS.warm_pad, volume: 0.8, lfoRate: 5.0, delayTime: 0.25, delayFb: 0.3, reverb: 0.2, resonance: 2.0 };
+
+        // Computer Keyboard Mapping (Key code -> Note offset relative to base C3/C4)
+        const KEY_MAP = {
+            'KeyA': 0,  // C
+            'KeyW': 1,  // C#
+            'KeyS': 2,  // D
+            'KeyE': 3,  // D#
+            'KeyD': 4,  // E
+            'KeyF': 5,  // F
+            'KeyT': 6,  // F#
+            'KeyG': 7,  // G
+            'KeyY': 8,  // G#
+            'KeyH': 9,  // A
+            'KeyU': 10, // A#
+            'KeyJ': 11, // B
+            'KeyK': 12, // High C
+            'KeyO': 13, // C#
+            'KeyL': 14  // D
+        };
+
+        function initAudio() {
+            if (audioCtx) return;
+
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+
+            // Master Volume
+            masterGain = audioCtx.createGain();
+            masterGain.gain.setValueAtTime(synthParams.volume, audioCtx.currentTime);
+
+            // Filter
+            mainFilter = audioCtx.createBiquadFilter();
+            mainFilter.type = 'lowpass';
+            mainFilter.frequency.setValueAtTime(synthParams.cutoff, audioCtx.currentTime);
+            mainFilter.Q.setValueAtTime(synthParams.resonance, audioCtx.currentTime);
+
+            // Delay Node
+            delayNode = audioCtx.createDelay();
+            delayNode.delayTime.setValueAtTime(synthParams.delayTime, audioCtx.currentTime);
+
+            delayFeedbackNode = audioCtx.createGain();
+            delayFeedbackNode.gain.setValueAtTime(synthParams.delayFb, audioCtx.currentTime);
+
+            // Reverb (Simple Impulse Response Synth)
+            convolverNode = audioCtx.createConvolver();
+            createReverbImpulse();
+
+            reverbGainNode = audioCtx.createGain();
+            reverbGainNode.gain.setValueAtTime(synthParams.reverb, audioCtx.currentTime);
+
+            // Analyser for Visualizer
+            analyserNode = audioCtx.createAnalyser();
+            analyserNode.fftSize = 1024;
+
+            // Audio Signal Routing:
+            // Voice -> mainFilter -> masterGain -> Analyser -> Destination
+            //                      \-> Delay Loop ----/
+            //                      \-> Convolver (Reverb) -> ReverbGain -/
+
+            mainFilter.connect(masterGain);
+
+            // Delay loop
+            mainFilter.connect(delayNode);
+            delayNode.connect(delayFeedbackNode);
+            delayFeedbackNode.connect(delayNode);
+            delayFeedbackNode.connect(masterGain);
+
+            // Reverb
+            mainFilter.connect(convolverNode);
+            convolverNode.connect(reverbGainNode);
+            reverbGainNode.connect(masterGain);
+
+            masterGain.connect(analyserNode);
+            analyserNode.connect(audioCtx.destination);
+
+            // Update UI Button
+            const btn = document.getElementById('btn-audio-init');
+            btn.classList.remove('bg-emerald-600', 'hover:bg-emerald-500');
+            btn.classList.add('bg-slate-800', 'text-emerald-400', 'border', 'border-emerald-500/30');
+            document.getElementById('audio-status-text').innerText = 'オーディオ活性中';
+
+            // Start Visualizer Loop
+            drawOscilloscope();
+        }
+
+        // Generate synthetic Reverb Impulse Response
+        function createReverbImpulse() {
+            if (!audioCtx) return;
+            const rate = audioCtx.sampleRate;
+            const length = rate * 2.0; // 2 sec decay
+            const impulse = audioCtx.createBuffer(2, length, rate);
+            for (let channel = 0; channel < 2; channel++) {
+                const channelData = impulse.getChannelData(channel);
+                for (let i = 0; i < length; i++) {
+                    channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2.5);
+                }
+            }
+            convolverNode.buffer = impulse;
+        }
+
+        // Convert MIDI note number to frequency
+        function midiNoteToFreq(note) {
+            return 440 * Math.pow(2, (note - 69) / 12);
+        }
+
+        // Voice Class for handling individual polyphonic notes
+        function noteOn(midiNote, velocity = 0.8) {
+            if (!audioCtx) initAudio();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+
+            // If note is already playing, stop existing one clean
+            if (activeVoices.has(midiNote)) {
+                noteOff(midiNote, true);
+            }
+
+            const freq = midiNoteToFreq(midiNote);
+            const now = audioCtx.currentTime;
+
+            // Voice gain node
+            const voiceGain = audioCtx.createGain();
+            const velFactor = Math.max(0.1, velocity);
+
+            // Oscillators (Dual Detuned for thickness)
+            const osc1 = audioCtx.createOscillator();
+            const osc2 = audioCtx.createOscillator();
+
+            osc1.type = synthParams.wave;
+            osc2.type = synthParams.wave2 || synthParams.wave;
+
+            osc1.frequency.setValueAtTime(freq, now);
+            osc2.frequency.setValueAtTime(freq, now);
+
+            // Slight detune for chorus/richness
+            osc1.detune.setValueAtTime(-synthParams.detune, now);
+            osc2.detune.setValueAtTime(synthParams.detune, now);
+
+            // LFO for subtle vibrato
+            const lfo = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            lfo.frequency.setValueAtTime(synthParams.lfoRate, now);
+            lfoGain.gain.setValueAtTime(3, now); // Pitch wobble depth
+            lfo.connect(osc1.frequency);
+            lfo.connect(osc2.frequency);
+            lfo.start(now);
+
+            // ADSR Envelope
+            const attack = Math.max(0.002, synthParams.attack);
+            const decay = Math.max(0.01, synthParams.decay);
+            const sustainVol = synthParams.sustain * velFactor;
+
+            voiceGain.gain.setValueAtTime(0.0001, now);
+            voiceGain.gain.linearRampToValueAtTime(velFactor, now + attack);
+            voiceGain.gain.exponentialRampToValueAtTime(Math.max(0.0001, sustainVol), now + attack + decay);
+
+            // Mix Osc -> VoiceGain -> MainFilter
+            osc1.connect(voiceGain);
+            osc2.connect(voiceGain);
+            voiceGain.connect(mainFilter);
+
+            osc1.start(now);
+            osc2.start(now);
+
+            // Store voice instance
+            activeVoices.set(midiNote, {
+                osc1, osc2, lfo, voiceGain, velFactor,
+                startTime: now
+            });
+
+            // Update UI Key active state
+            highlightKey(midiNote, true);
+            updateVoiceCounter();
+        }
+
+        function noteOff(midiNote, immediate = false) {
+            if (!activeVoices.has(midiNote)) return;
+
+            // If sustain pedal is down, postpone note release
+            if (isSustainActive && !immediate) {
+                activePedalNotes.add(midiNote);
+                return;
+            }
+
+            const voice = activeVoices.get(midiNote);
+            activeVoices.delete(midiNote);
+            activePedalNotes.delete(midiNote);
+
+            if (!audioCtx) return;
+
+            const now = audioCtx.currentTime;
+            const release = immediate ? 0.01 : Math.max(0.01, synthParams.release);
+
+            // Release Envelope
+            voice.voiceGain.gain.cancelScheduledValues(now);
+            voice.voiceGain.gain.setValueAtTime(voice.voiceGain.gain.value, now);
+            voice.voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + release);
+
+            setTimeout(() => {
+                try {
+                    voice.osc1.stop();
+                    voice.osc2.stop();
+                    voice.lfo.stop();
+                    voice.osc1.disconnect();
+                    voice.osc2.disconnect();
+                    voice.voiceGain.disconnect();
+                } catch(e) {}
+            }, release * 1000 + 50);
+
+            // Update UI Key active state
+            highlightKey(midiNote, false);
+            updateVoiceCounter();
+        }
+
+        // Web MIDI Setup
+        function initMIDI() {
+            if (navigator.requestMIDIAccess) {
+                navigator.requestMIDIAccess().then(onMIDISuccess, onMIDIFailure);
+            } else {
+                logMIDI("Web MIDI APIはこのブラウザでサポートされていません。");
+                document.getElementById('midi-status-dot').className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+            }
+        }
+
+        function onMIDISuccess(midi) {
+            midiAccess = midi;
+            updateMIDIInputs();
+
+            // Listen for device state changes (hotplug)
+            midiAccess.onstatechange = (e) => {
+                updateMIDIInputs();
+                logMIDI(`MIDI機器の状態変更: ${e.port.name} (${e.port.state})`);
+            };
+        }
+
+        function onMIDIFailure(msg) {
+            logMIDI(`MIDI接続失敗: ${msg}`);
+            document.getElementById('midi-status-dot').className = "w-2.5 h-2.5 rounded-full bg-rose-500";
+        }
+
+        function updateMIDIInputs() {
+            const select = document.getElementById('midi-input-select');
+            select.innerHTML = '';
+
+            const inputs = Array.from(midiAccess.inputs.values());
+
+            if (inputs.length === 0) {
+                select.innerHTML = '<option value="">MIDI機器が未接続です</option>';
+                document.getElementById('midi-status-dot').className = "w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse";
+                return;
+            }
+
+            document.getElementById('midi-status-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50";
+
+            inputs.forEach(input => {
+                const opt = document.createElement('option');
+                opt.value = input.id;
+                opt.text = input.name || `MIDI Device ${input.id}`;
+                select.appendChild(opt);
+
+                // Bind message event listener
+                input.onmidimessage = handleMIDIMessage;
+            });
+
+            logMIDI(`${inputs.length}台のMIDIデバイスを検出・接続完了`);
+        }
+
+        // Parse incoming MIDI Message Bytes
+        function handleMIDIMessage(event) {
+            const data = event.data;
+            const cmd = data[0] >> 4;
+            const channel = data[0] & 0xf;
+            const noteOrCC = data[1];
+            const velocityOrVal = data[2];
+
+            // Command types
+            // 9 = Note On, 8 = Note Off, 11 = Control Change (CC), 14 = Pitch Bend
+            switch (cmd) {
+                case 9: // Note On
+                    if (velocityOrVal > 0) {
+                        const velocity = velocityOrVal / 127;
+                        noteOn(noteOrCC, velocity);
+                        document.getElementById('midi-velocity-val').innerText = `${velocityOrVal} (${Math.round(velocity * 100)}%)`;
+                        logMIDI(`Note ON: ${getNoteName(noteOrCC)} (Vel: ${velocityOrVal})`);
+                    } else {
+                        noteOff(noteOrCC);
+                        logMIDI(`Note OFF: ${getNoteName(noteOrCC)}`);
+                    }
+                    break;
+
+                case 8: // Note Off
+                    noteOff(noteOrCC);
+                    logMIDI(`Note OFF: ${getNoteName(noteOrCC)}`);
+                    break;
+
+                case 11: // Control Change (CC)
+                    handleControlChange(noteOrCC, velocityOrVal);
+                    break;
+
+                case 14: // Pitch Bend
+                    const bendVal = (velocityOrVal << 7) | noteOrCC; // 14-bit value (0 - 16383, center 8192)
+                    handlePitchBend(bendVal);
+                    break;
+            }
+        }
+
+        // Handle CC parameters (Sustain Pedal, Modulation wheel, Volume)
+        function handleControlChange(cc, value) {
+            // CC 64 = Sustain Pedal
+            if (cc === 64) {
+                isSustainActive = value >= 64;
+                const ind = document.getElementById('sustain-indicator');
+                if (isSustainActive) {
+                    ind.innerText = "Sustain ON";
+                    ind.className = "text-[10px] px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 font-bold uppercase border border-sky-500/40";
+                } else {
+                    ind.innerText = "Sustain OFF";
+                    ind.className = "text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-500 font-bold uppercase";
+                    // Release stored pedal notes
+                    activePedalNotes.forEach(note => noteOff(note, false));
+                    activePedalNotes.clear();
+                }
+                logMIDI(`Sustain Pedal: ${isSustainActive ? 'ON' : 'OFF'}`);
+            }
+            // CC 74 = Cutoff Frequency
+            else if (cc === 74) {
+                const cutoffFreq = 50 + (value / 127) * 11950;
+                document.getElementById('param-cutoff').value = cutoffFreq;
+                updateParam('cutoff', cutoffFreq);
+                logMIDI(`Filter Cutoff CC: ${Math.round(cutoffFreq)}Hz`);
+            }
+            // CC 7 = Master Volume
+            else if (cc === 7) {
+                const vol = value / 127;
+                document.getElementById('param-volume').value = vol;
+                updateParam('volume', vol);
+            }
+        }
+
+        // Pitch Bend Controller
+        function handlePitchBend(value) {
+            const cents = ((value - 8192) / 8192) * 200; // +- 2 Semitones (200 cents)
+            document.getElementById('midi-pitchbend-val').innerText = `${value} (${cents > 0 ? '+' : ''}${cents.toFixed(0)} cent)`;
+
+            // Apply detune shift to all active voices
+            activeVoices.forEach((voice) => {
+                const baseFreq = midiNoteToFreq(voice.note);
+                voice.osc1.detune.setValueAtTime(-synthParams.detune + cents, audioCtx.currentTime);
+                voice.osc2.detune.setValueAtTime(synthParams.detune + cents, audioCtx.currentTime);
+            });
+        }
+
+        // Convert MIDI note number to note name (e.g. 60 -> C4)
+        function getNoteName(note) {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const octave = Math.floor(note / 12) - 1;
+            return `${names[note % 12]}${octave}`;
+        }
+
+        function logMIDI(msg) {
+            const logBox = document.getElementById('midi-log');
+            const item = document.createElement('div');
+            item.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            logBox.prepend(item);
+            if (logBox.children.length > 30) logBox.removeChild(logBox.lastChild);
+        }
+
+        // Piano Keyboard GUI Generator
+        function generateKeyboard() {
+            const keyboard = document.getElementById('piano-keyboard');
+            keyboard.innerHTML = '';
+
+            const startNote = 48 + (currentOctaveShift * 12); // Base C3
+            const numKeys = 37; // 3 Octaves (37 notes)
+
+            // Separate white and black keys for proper overlay positioning
+            const keyContainer = document.createElement('div');
+            keyContainer.className = 'relative flex h-full justify-center min-w-max px-2';
+
+            const blackKeys = [];
+
+            for (let i = 0; i < numKeys; i++) {
+                const note = startNote + i;
+                const isBlack = [1, 3, 6, 8, 10].includes(note % 12);
+
+                if (!isBlack) {
+                    // White Key
+                    const key = document.createElement('div');
+                    key.className = 'key-white relative w-8 sm:w-10 h-full rounded-b-md flex flex-col justify-end items-center pb-2 text-[10px] font-semibold text-slate-500 cursor-pointer select-none';
+                    key.dataset.note = note;
+                    key.id = `key-${note}`;
+
+                    // Show key label for first octave PC keys
+                    const pcKeyName = getPCKeyLabel(note - startNote);
+                    if (pcKeyName) {
+                        key.innerHTML = `<span class="bg-slate-300/80 text-slate-800 text-[9px] px-1 rounded font-mono">${pcKeyName}</span><span class="text-[9px] mt-0.5">${getNoteName(note)}</span>`;
+                    } else {
+                        key.innerHTML = `<span class="text-[9px]">${getNoteName(note)}</span>`;
+                    }
+
+                    bindKeyEvents(key, note);
+                    keyContainer.appendChild(key);
+                } else {
+                    // Black key metadata for absolute layer calculation
+                    blackKeys.push(note);
+                }
+            }
+
+            keyboard.appendChild(keyContainer);
+
+            // Position Black Keys over White Keys
+            const whiteKeyElements = keyContainer.querySelectorAll('.key-white');
+            let whiteIndex = 0;
+
+            for (let i = 0; i < numKeys; i++) {
+                const note = startNote + i;
+                const isBlack = [1, 3, 6, 8, 10].includes(note % 12);
+
+                if (isBlack) {
+                    const prevWhiteKey = whiteKeyElements[whiteIndex - 1];
+                    if (prevWhiteKey) {
+                        const blackKey = document.createElement('div');
+                        blackKey.className = 'key-black absolute w-5 sm:w-6 h-28 sm:h-32 rounded-b-md z-10 cursor-pointer select-none flex flex-col justify-end items-center pb-1';
+                        blackKey.dataset.note = note;
+                        blackKey.id = `key-${note}`;
+
+                        // Calculate offset
+                        const leftOffset = prevWhiteKey.offsetLeft + prevWhiteKey.offsetWidth - (window.innerWidth < 640 ? 10 : 12);
+                        blackKey.style.left = `${leftOffset}px`;
+
+                        const pcKeyName = getPCKeyLabel(note - startNote);
+                        if (pcKeyName) {
+                            blackKey.innerHTML = `<span class="bg-slate-700 text-sky-300 text-[8px] px-0.5 rounded font-mono mb-1">${pcKeyName}</span>`;
+                        }
+
+                        bindKeyEvents(blackKey, note);
+                        keyContainer.appendChild(blackKey);
+                    }
+                } else {
+                    whiteIndex++;
+                }
+            }
+        }
+
+        function getPCKeyLabel(offset) {
+            const map = {
+                0: 'A', 1: 'W', 2: 'S', 3: 'E', 4: 'D', 5: 'F', 6: 'T',
+                7: 'G', 8: 'Y', 9: 'H', 10: 'U', 11: 'J', 12: 'K'
+            };
+            return map[offset] || null;
+        }
+
+        // Bind Mouse and Touch interactions to Key
+        function bindKeyEvents(keyEl, note) {
+            const startPlay = (e) => {
+                e.preventDefault();
+                noteOn(note, 0.85);
+            };
+            const stopPlay = (e) => {
+                e.preventDefault();
+                noteOff(note);
+            };
+
+            keyEl.addEventListener('mousedown', startPlay);
+            keyEl.addEventListener('mouseup', stopPlay);
+            keyEl.addEventListener('mouseleave', stopPlay);
+
+            keyEl.addEventListener('touchstart', startPlay, { passive: false });
+            keyEl.addEventListener('touchend', stopPlay, { passive: false });
+        }
+
+        function highlightKey(note, active) {
+            const key = document.getElementById(`key-${note}`);
+            if (key) {
+                if (active) {
+                    key.classList.add('active');
+                } else {
+                    key.classList.remove('active');
+                }
+            }
+        }
+
+        function updateVoiceCounter() {
+            document.getElementById('active-voices-counter').innerText = `Active Voices: ${activeVoices.size}`;
+        }
+
+        // Oscilloscope Waveform Renderer
+        function drawOscilloscope() {
+            requestAnimationFrame(drawOscilloscope);
+
+            const canvas = document.getElementById('oscilloscope-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Responsive sizing
+            if (canvas.width !== canvas.clientWidth || canvas.height !== canvas.clientHeight) {
+                canvas.width = canvas.clientWidth;
+                canvas.height = canvas.clientHeight;
+            }
+
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.3)'; // Subtle fade trail
+            ctx.fillRect(0, 0, width, height);
+
+            if (!analyserNode) {
+                // Idle center line
+                ctx.beginPath();
+                ctx.strokeStyle = '#334155';
+                ctx.moveTo(0, height / 2);
+                ctx.lineTo(width, height / 2);
+                ctx.stroke();
+                return;
+            }
+
+            const bufferLength = analyserNode.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyserNode.getByteTimeDomainData(dataArray);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#38bdf8'; // Glowing neon sky blue
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#0284c7';
+
+            ctx.beginPath();
+            const sliceWidth = width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = (v * height) / 2;
+
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0; // Reset blur for performance
+        }
+
+        // Control Listeners Setup
+        function setupUIListeners() {
+            // Audio Init Button
+            document.getElementById('btn-audio-init').addEventListener('click', initAudio);
+
+            // Preset Selector
+            document.getElementById('preset-select').addEventListener('change', (e) => {
+                const presetKey = e.target.value;
+                if (PRESETS[presetKey]) {
+                    Object.assign(synthParams, PRESETS[presetKey]);
+                    updateUIFromParams();
+                    logMIDI(`音色変更: ${e.target.options[e.target.selectedIndex].text}`);
+                }
+            });
+
+            // Octave Buttons
+            document.getElementById('btn-oct-down').addEventListener('click', () => {
+                if (currentOctaveShift > -2) {
+                    currentOctaveShift--;
+                    document.getElementById('val-octave').innerText = currentOctaveShift;
+                    generateKeyboard();
+                }
+            });
+            document.getElementById('btn-oct-up').addEventListener('click', () => {
+                if (currentOctaveShift < 2) {
+                    currentOctaveShift++;
+                    document.getElementById('val-octave').innerText = currentOctaveShift;
+                    generateKeyboard();
+                }
+            });
+
+            // Dynamic Sliders Mapping
+            const sliders = [
+                { id: 'param-volume', param: 'volume', valId: 'val-volume', format: v => `${Math.round(v * 100)}%` },
+                { id: 'param-attack', param: 'attack', valId: 'val-attack', format: v => `${parseFloat(v).toFixed(2)}s` },
+                { id: 'param-decay', param: 'decay', valId: 'val-decay', format: v => `${parseFloat(v).toFixed(2)}s` },
+                { id: 'param-sustain', param: 'sustain', valId: 'val-sustain', format: v => parseFloat(v).toFixed(2) },
+                { id: 'param-release', param: 'release', valId: 'val-release', format: v => `${parseFloat(v).toFixed(2)}s` },
+                { id: 'param-cutoff', param: 'cutoff', valId: 'val-cutoff', format: v => `${Math.round(v)} Hz` },
+                { id: 'param-resonance', param: 'resonance', valId: 'val-resonance', format: v => parseFloat(v).toFixed(1) },
+                { id: 'param-lfo-rate', param: 'lfo-rate', valId: 'val-lfo-rate', format: v => `${parseFloat(v).toFixed(1)} Hz` },
+                { id: 'param-delay-time', param: 'delayTime', valId: 'val-delay-time', format: v => `${parseFloat(v).toFixed(2)}s` },
+                { id: 'param-delay-fb', param: 'delayFb', valId: 'val-delay-fb', format: v => `${Math.round(v * 100)}%` },
+                { id: 'param-reverb', param: 'reverb', valId: 'val-reverb', format: v => `${Math.round(v * 100)}%` }
+            ];
+
+            sliders.forEach(item => {
+                const input = document.getElementById(item.id);
+                if (input) {
+                    input.addEventListener('input', (e) => {
+                        const val = parseFloat(e.target.value);
+                        synthParams[item.param] = val;
+                        document.getElementById(item.valId).innerText = item.format(val);
+                        updateAudioNodes();
+                    });
+                }
+            });
+
+            // Computer Keyboard Trigger
+            window.addEventListener('keydown', (e) => {
+                if (e.repeat) return;
+                if (KEY_MAP.hasOwnProperty(e.code)) {
+                    const offset = KEY_MAP[e.code];
+                    const baseNote = 48 + (currentOctaveShift * 12);
+                    noteOn(baseNote + offset, 0.8);
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                if (KEY_MAP.hasOwnProperty(e.code)) {
+                    const offset = KEY_MAP[e.code];
+                    const baseNote = 48 + (currentOctaveShift * 12);
+                    noteOff(baseNote + offset);
+                }
+            });
+        }
+
+        // Update Slider values visually when preset changes
+        function updateUIFromParams() {
+            document.getElementById('param-attack').value = synthParams.attack;
+            document.getElementById('val-attack').innerText = `${synthParams.attack.toFixed(2)}s`;
+
+            document.getElementById('param-decay').value = synthParams.decay;
+            document.getElementById('val-decay').innerText = `${synthParams.decay.toFixed(2)}s`;
+
+            document.getElementById('param-sustain').value = synthParams.sustain;
+            document.getElementById('val-sustain').innerText = synthParams.sustain.toFixed(2);
+
+            document.getElementById('param-release').value = synthParams.release;
+            document.getElementById('val-release').innerText = `${synthParams.release.toFixed(2)}s`;
+
+            document.getElementById('param-cutoff').value = synthParams.cutoff;
+            document.getElementById('val-cutoff').innerText = `${Math.round(synthParams.cutoff)} Hz`;
+
+            updateAudioNodes();
+        }
+
+        // Synchronize Web Audio node properties with synthParams
+        function updateAudioNodes() {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+
+            if (masterGain) masterGain.gain.setValueAtTime(synthParams.volume, now);
+            if (mainFilter) {
+                mainFilter.frequency.setValueAtTime(synthParams.cutoff, now);
+                mainFilter.Q.setValueAtTime(synthParams.resonance, now);
+            }
+            if (delayNode) delayNode.delayTime.setValueAtTime(synthParams.delayTime, now);
+            if (delayFeedbackNode) delayFeedbackNode.gain.setValueAtTime(synthParams.delayFb, now);
+            if (reverbGainNode) reverbGainNode.gain.setValueAtTime(synthParams.reverb, now);
+        }
+
+        window.onload = function() {
+            generateKeyboard();
+            setupUIListeners();
+            initMIDI();
+        };
+    </script>
+</body>
+</html>
